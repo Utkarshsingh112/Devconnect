@@ -22,13 +22,13 @@ const Page =async ()=>{
             <div className="mt-20 space-y-7">
                 <h3>Featured Events</h3>
 
-                <ul className="list-none events">
+                {/* <ul className="list-none events">
                     { events && events.length>0 && events.map((event:IEvent) => (
                         <li key={event.title} >
                             <EventCard {...event} />
                         </li>
                     ))}
-                </ul>
+                </ul> */}
             </div>
         </section>
     );
