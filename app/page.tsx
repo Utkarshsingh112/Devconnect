@@ -2,12 +2,14 @@ import ExploreBtn from "./components/ExploreBtn";
 import EventCard from "./components/EventCard";
 import { IEvent } from "@/database";
 
+
+export const revalidate=3600;
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL;
 
-const Page = async () => {
-    // 'use cache';
-    // cacheLife('hours')
-    const response = await fetch(`${BASE_URL}/api/events`);
+const Page =async ()=>{
+    const response =await fetch(`${BASE_URL}/api/events`,{
+        next:{revalidate:3600},
+    });
     const { events } = await response.json();
 
     return (
@@ -29,7 +31,7 @@ const Page = async () => {
                 </ul>
             </div>
         </section>
-    )
+    );
 }
 
 export default Page;

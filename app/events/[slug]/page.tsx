@@ -4,8 +4,8 @@ import BookEvent from '@/app/components/BookEvent';
 import {getSimilarEventsBySlug} from '@/lib/actions/event.actions'
 import { IEvent } from '@/database';
 import EventCard from '@/app/components/EventCard';
-
-
+import { cacheLife } from 'next/cache';
+import { Suspense } from 'react';
 const BASE_URL=process.env.NEXT_PUBLIC_BASE_URL;
 const EventDetailItem=({icon,alt,label}:{icon:string,alt:string,label:string})=>(
   <div className="flex-row-gap-2 items-center">
@@ -24,7 +24,7 @@ const EventAgenda=({agendaItems}:{agendaItems:string[]})=>(
   </div>
 )
 const EventTags=({tags}:{tags:string[]})=>(
-  <div className="flex flex-row gap-2 flex-wrap">
+  <div className="tags-row">
     {
       tags.map((tag)=>(
         <div className="pill" key={tag}> 
@@ -34,18 +34,28 @@ const EventTags=({tags}:{tags:string[]})=>(
   </div>
 )
 
-const EventDetailsPage =async ({params}:{params:Promise<{slug:string}>}) => {
-  const {slug} = await params;
-  const request=await fetch(`${BASE_URL}/api/events/${slug}`)
-  const {event :{description,image,overview,date,time,location,mode,agenda,audience,tags,organizer}}=await request.json();
-
-  if(!description)  return notFound();
-  const bookings=10;
-  
+const EventDetailsPage =async ({params}:{params:{slug:string}}) => {
+  const {slug} = params;
+  let event: { _id?: string; id?: string; slug?: string; description?: string; image?: string; overview?: string; date?: string; time?: string; location?: string; mode?: string; agenda?: string[]; audience?: string; tags?: string[]; organizer?: string };
+  try {
+    const request = await fetch(`${BASE_URL}/api/events/${slug}`, { next: { revalidate: 60 } });
+    if (!request.ok) {
+      if (request.status === 404) return notFound();
+      throw new Error(`Failed to fetch event: ${request.statusText}`);
+    }
+    const data = await request.json();
+    event = data?.event ?? {};
+  } catch (e) {
+    if (e instanceof Error && e.message.startsWith('Failed to fetch')) throw e;
+    return notFound();
+  }
+  const { description, image, overview, date, time, location, mode, agenda, audience, tags, organizer } = event;
+  if (!description) return notFound();
+  const bookings = 10;
   const similarEvents: IEvent[] = await getSimilarEventsBySlug(slug);
-  console.log(similarEvents);
 
   return (
+    <Suspense fallback={<div>Loading...</div>}>
     <section id="event">
     <div className='header'>
       <h1>Event Description</h1>
@@ -53,7 +63,7 @@ const EventDetailsPage =async ({params}:{params:Promise<{slug:string}>}) => {
     </div>
     <div className='details'>
       <div className='content'>
-        <Image src={image} alt="Event Banner" width={800} height={800} className="banner"/>
+        {image && <Image src={image} alt="Event Banner" width={800} height={800} className="banner"/>}
         <section className="flex-col-gap-2">
           <h2>Overview</h2>
           <p>{overview}</p>
@@ -61,19 +71,19 @@ const EventDetailsPage =async ({params}:{params:Promise<{slug:string}>}) => {
 
         <section className="flex-col-gap-2">
             <h2>Event Details</h2>
-            <EventDetailItem icon="/icons/calendar.svg" alt="calendar" label={date}/>
-            <EventDetailItem icon="/icons/clock.svg" alt="clock" label={time}/>
-            <EventDetailItem icon="/icons/pin.svg" alt="pin" label={location}/>
-            <EventDetailItem icon="/icons/mode.svg" alt="mode" label={mode}/>
-            <EventDetailItem icon="/icons/audience.svg" alt="audience" label={audience}/>
+            <EventDetailItem icon="/icons/calendar.svg" alt="calendar" label={date ?? ''}/>
+            <EventDetailItem icon="/icons/clock.svg" alt="clock" label={time ?? ''}/>
+            <EventDetailItem icon="/icons/pin.svg" alt="pin" label={location ?? ''}/>
+            <EventDetailItem icon="/icons/mode.svg" alt="mode" label={mode ?? ''}/>
+            <EventDetailItem icon="/icons/audience.svg" alt="audience" label={audience ?? ''}/>
         </section>
 
-        <EventAgenda agendaItems={agenda}/>
+        <EventAgenda agendaItems={agenda ?? []}/>
         <section className="flex-col-gap-2">
           <h2>About the Organizer</h2>
           <p>{organizer}</p>
         </section>
-      <EventTags tags={tags}/>
+      <EventTags tags={tags ?? []}/>
       
 
       </div>
@@ -89,22 +99,24 @@ const EventDetailsPage =async ({params}:{params:Promise<{slug:string}>}) => {
             <p className="test-sm"> Be the first to book your spot</p>
           )
         }
-        <BookEvent/>
+        <BookEvent eventId={event._id ?? event.id} slug={event.slug ?? slug}/>
       </div>
 
       </aside>
 
     </div>
-    <div className='flex w-full flex-col gap-4 pt-20'>
-          <h2 >Similar Events</h2>
-          <div className="events">
-            {similarEvents.length>0 && similarEvents.map((similarEvent:IEvent)=>(
-              <EventCard key={similarEvent.title} 
-              {...similarEvent}/>
-            ))}
-          </div>
+    <div className='section-y-lg'>
+      <h2>Similar Events</h2>
+      <div className="events">
+        {similarEvents.length>0 && similarEvents.map((similarEvent:IEvent)=>(
+          <EventCard key={similarEvent.title} 
+          {...similarEvent}/>
+        ))}
+      </div>
     </div>
     </section>
+    </Suspense>
+
   )
 }
 
